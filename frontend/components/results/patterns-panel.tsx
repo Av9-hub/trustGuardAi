@@ -61,6 +61,34 @@ export function PatternsPanel({ patterns, activePatternId, onPatternSelect }: Pa
     id: "Sort by Order"
   }
 
+  if (patterns.length === 0) {
+    return (
+      <div className="flex flex-col">
+        {/* Header */}
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="font-display text-xl font-semibold text-text-primary">
+            Clean UI Detected
+          </h2>
+        </div>
+
+        {/* Clean Result Card */}
+        <div className="rounded-lg border border-border bg-bg-surface p-6 text-center">
+          <p className="text-lg font-semibold text-green-400 mb-2">
+            ✅ No Dark Patterns Detected
+          </p>
+
+          <p className="text-sm text-text-secondary">
+            This interface appears transparent and does not use manipulative design practices.
+          </p>
+
+          <div className="mt-4 text-xs text-text-muted font-mono">
+            TrustGuard AI Analysis Complete
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col">
       {/* Header */}

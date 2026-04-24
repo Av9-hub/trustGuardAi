@@ -1,7 +1,13 @@
+
 from __future__ import annotations
+import base64
+def encode_screenshot(image_bytes: bytes) -> str:
+    return base64.b64encode(image_bytes).decode()
+
 from dotenv import load_dotenv
 load_dotenv()
-
+# analyzer.py
+from ocr import extract_text, is_suspicious
 import json
 import os
 import re
@@ -96,8 +102,32 @@ def analyze_image(image_bytes: bytes, filename: str = "upload") -> dict:
 
         client = genai.Client(api_key=api_key)
 
-        print("🚀 CALLING GEMINI...")
+        
+        # ==============================
+        # OCR PRE-CHECK (ADDED)
+        # ==============================
+        text = extract_text(image_bytes)
+        # print("OCR TEXT:", text)
 
+        # keep your logic SAME, just gate Gemini call
+        if len(text.strip()) <= 60:
+            if not is_suspicious(text):
+                print("⏭️ Skipping Gemini (clean UI detected via OCR)")
+
+                # import base64
+                # screenshot_base64 = base64.b64encode(image_bytes).decode()
+
+                return {
+                    "scan_id": str(uuid4()),
+                    "filename": filename,
+                    "patterns": [],
+                    "manipulation_score": 0,
+                    "verdict": "CLEAN (OCR)",
+                    "ethical_rating": "Questionable",
+                    "timestamp": datetime.now().isoformat(),
+                    "screenshot": encode_screenshot(image_bytes)
+                }
+        print("🚀 CALLING GEMINI...")
         # 🔁 retry logic for 503
         for attempt in range(3):
             try:
@@ -110,7 +140,7 @@ def analyze_image(image_bytes: bytes, filename: str = "upload") -> dict:
                                 {"text": SYSTEM_PROMPT},
                                 {
                                     "inline_data": {
-                                        "mime_type": "image/png",
+                                        "mime_type": "image/jpeg",
                                         "data": image_bytes
                                     }
                                 }
@@ -133,15 +163,21 @@ def analyze_image(image_bytes: bytes, filename: str = "upload") -> dict:
 
                 parsed = json.loads(match.group())
 
-                return normalize_result(parsed, filename)
+                result = normalize_result(parsed, filename)
+                result["screenshot"] = encode_screenshot(image_bytes)
+                return result
 
             except Exception as e:
                 print(f"⚠️ Retry {attempt+1} failed:", e)
                 time.sleep(2)
 
         print("❌ ALL RETRIES FAILED")
-        return fallback_result(filename)
+        result = fallback_result(filename)
+        result["screenshot"] = encode_screenshot(image_bytes)
+        return result
 
     except Exception as exc:
         print("🔥 FINAL ERROR:", exc)
-        return fallback_result(filename, verdict=str(exc))
+        result = fallback_result(filename, verdict=str(exc))
+        result["screenshot"] = encode_screenshot(image_bytes)
+        return result

@@ -22,8 +22,22 @@ export default function ResultsPage() {
       router.replace("/")
       return
     }
-    setImageUrl(readLatestPreviewUrl())
+
+    let finalImage: string | null = null
+
+    // ✅ Priority 1: backend screenshot (UPLOAD + URL if available)
+    if (result.screenshot) {
+      finalImage = `data:image/png;base64,${result.screenshot}`
+    }
+
+    // ✅ Priority 2: existing working preview (LIVE URL fallback)
+    if (!finalImage) {
+      finalImage = readLatestPreviewUrl()
+    }
+
+    setImageUrl(finalImage)
     setResultLoaded(true)
+
   }, [result, router])
 
   if (!resultLoaded || !result) return null

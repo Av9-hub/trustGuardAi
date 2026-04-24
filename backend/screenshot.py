@@ -22,7 +22,8 @@ def _capture_sync(url: str) -> bytes:
 
             page = context.new_page()
 
-            page.goto(url, wait_until="networkidle", timeout=30000)
+            page.goto(url, wait_until="domcontentloaded", timeout=30000)
+            page.wait_for_timeout(3000)
 
             screenshot = page.screenshot(
                             full_page=False,
