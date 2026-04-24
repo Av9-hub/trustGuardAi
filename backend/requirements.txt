@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+python-multipart
+google-genai
+Pillow
+reportlab
+playwright
+python-dotenv
+pydantic[email]
