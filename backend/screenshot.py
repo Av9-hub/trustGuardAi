@@ -36,7 +36,7 @@ def _capture_sync(url: str) -> bytes:
             return screenshot
 
     except Exception as exc:
-        print("🔥 PLAYWRIGHT ERROR:", exc)
+        print("[screenshot] Playwright error:", exc)
         raise HTTPException(
             status_code=503,
             detail=f"URL capture failed: {exc}"

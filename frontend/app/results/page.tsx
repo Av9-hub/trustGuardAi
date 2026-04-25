@@ -61,7 +61,9 @@ export default function ResultsPage() {
               <ScoreRing score={result.manipulation_score} />
               <div>
                 <p className="font-mono text-xs text-accent-cyan">// AUDIT RESULT</p>
-                <h1 className="font-display text-3xl text-text-primary">{result.filename}</h1>
+                <h1 className="font-display text-xl md:text-2xl text-text-primary truncate max-w-[600px]">
+                  {result.filename}
+                </h1>
                 <p className="mt-2 text-text-secondary">{result.verdict}</p>
               </div>
             </div>

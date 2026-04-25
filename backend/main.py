@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 
 from analyzer import analyze_image, fallback_result
-from models import HealthResponse, ScanResult, URLRequest
+from models import HealthResponse, ScanResult, URLRequest, parse_scan_result
 from report import generate_pdf
 from sample_data import SAMPLE_SCANS
 from screenshot import capture_url
@@ -30,14 +30,29 @@ MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024
 SCAN_STORE: dict[str, dict] = {}
 
 
+def _detect_image_mime(image_bytes: bytes) -> str | None:
+    """Sniff image type from magic bytes (covers extension uploads with generic MIME)."""
+    if len(image_bytes) >= 3 and image_bytes[:3] == b"\xff\xd8\xff":
+        return "image/jpeg"
+    if len(image_bytes) >= 8 and image_bytes[:8] == b"\x89PNG\r\n\x1a\n":
+        return "image/png"
+    if len(image_bytes) >= 12 and image_bytes[:4] == b"RIFF" and image_bytes[8:12] == b"WEBP":
+        return "image/webp"
+    return None
+
+
+def _effective_upload_mime(declared: str | None, image_bytes: bytes) -> str | None:
+    header = (declared or "").split(";")[0].strip().lower()
+    if header in ALLOWED_CONTENT_TYPES:
+        return header
+    return _detect_image_mime(image_bytes)
+
+
 # ==============================
 # IMAGE ANALYSIS
 # ==============================
 @app.post("/analyze", response_model=ScanResult)
 async def analyze_upload(file: UploadFile = File(...)) -> ScanResult:
-    if file.content_type not in ALLOWED_CONTENT_TYPES:
-        raise HTTPException(status_code=400, detail="Unsupported file type. Allowed: jpg, png, webp.")
-
     image_bytes = await file.read()
 
     if not image_bytes:
@@ -46,13 +61,20 @@ async def analyze_upload(file: UploadFile = File(...)) -> ScanResult:
     if len(image_bytes) > MAX_FILE_SIZE_BYTES:
         raise HTTPException(status_code=413, detail="File too large. Max size is 10MB.")
 
+    effective = _effective_upload_mime(file.content_type, image_bytes)
+    if effective not in ALLOWED_CONTENT_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail="Unsupported file type. Allowed: jpg, png, webp.",
+        )
+
     result = analyze_image(image_bytes=image_bytes, filename=file.filename or "upload")
 
     scan_id = str(uuid4())
     result["scan_id"] = scan_id
-    SCAN_STORE[scan_id] = result
-
-    return ScanResult.model_validate(result)
+    validated = parse_scan_result(result)
+    SCAN_STORE[scan_id] = validated.model_dump(mode="json")
+    return validated
 
 
 # ==============================
@@ -75,7 +97,7 @@ async def analyze_from_url(payload: URLRequest) -> ScanResult:
         result["screenshot"] = base64.b64encode(screenshot_bytes).decode("utf-8")
 
     except Exception as exc:
-        print("🔥 URL ANALYSIS ERROR:", exc)
+        print("[analyze-url] Error:", exc)
 
         result = fallback_result(
             str(payload.url),
@@ -84,9 +106,9 @@ async def analyze_from_url(payload: URLRequest) -> ScanResult:
 
     scan_id = str(uuid4())
     result["scan_id"] = scan_id
-    SCAN_STORE[scan_id] = result
-
-    return ScanResult.model_validate(result)
+    validated = parse_scan_result(result)
+    SCAN_STORE[scan_id] = validated.model_dump(mode="json")
+    return validated
 
 # ==============================
 # PDF REPORT
